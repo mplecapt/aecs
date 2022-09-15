@@ -1,0 +1,23 @@
+[package]
+name = "aecs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hashbrown = "0.12.3"
+itertools = "0.10.4"
+mopa = "0.2.2"
+rand = "0.8.5"
+
+[dependencies.uuid]
+version = "1.1.2"
+features = ["v4"]
+
+[dev-dependencies]
+criterion = "0.4.0"
+
+[[bench]]
+name = "ecs_benchmark"
+harness = false
