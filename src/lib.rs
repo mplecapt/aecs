@@ -33,6 +33,24 @@ macro_rules! iter_over {
 	}};
 }
 
+#[macro_export]
+macro_rules! bundle {
+	($( $cv:ident ),*) => ( itertools::izip!( $( $cv.iter_mut() ),* ).filter_map(|( $($cv),* )| Some(( $($cv.as_mut()?),* ))) );
+}
+
+#[macro_export]
+macro_rules! create_and_attach {
+	($a:expr, {$($comp:expr),*}) => {
+		{
+			let id = $a.create_entity();
+			$(
+				$a.attach_component(id, $comp);
+			)*
+			id
+		}
+	};
+}
+
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub struct EntityId(Uuid);
@@ -82,14 +100,17 @@ impl Manager {
 			self.entity_count -= 1;
 		}
 	}
-	pub fn attach_component<CompType: 'static + Clone>(&mut self, entity: EntityId, component: CompType) {
+	pub fn attach_component<CompType: 'static>(&mut self, entity: EntityId, component: CompType) {
 		if let Some(row) = self.entity_index.get(&entity).cloned() {
 			let comp_type = TypeId::of::<CompType>();
 			let col = if let Some(col) = self.type_index.get(&comp_type).cloned() {
 				col
 			} else {
 				let col = self.components.len();
-				let cv: Vec<Option<CompType>> = vec![None; self.entity_count];
+				let mut cv: Vec<Option<CompType>> = Vec::with_capacity(self.entity_count);
+				for _ in 0..self.entity_count {
+					cv.push(None);
+				}
 				self.components.push(Box::new(RefCell::new(cv)));
 				self.type_index.insert(comp_type, col);
 				col
