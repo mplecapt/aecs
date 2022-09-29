@@ -4,6 +4,7 @@ use std::{any::TypeId, cell::{RefCell, RefMut}};
 use hashbrown::HashMap;
 use uuid::Uuid;
 
+
 pub trait ComponentVec: mopa::Any {
 	fn push_none(&self);
 	fn swap_remove(&self, row: usize);
@@ -19,22 +20,8 @@ impl<T: 'static> ComponentVec for RefCell<Vec<Option<T>>> {
 }
 
 #[macro_export]
-macro_rules! iter_over {
-	($a:expr, $t:ty) => ( $a.borrow_component_vec::<$t>().unwrap().iter_mut().filter_map(|c|Some(c.as_mut()?)) );
-	// ($a:expr, $c1:ident:$t1:ty, $c2:ident:$t2:ty) => {{
-	// 	$c1 = $a.borrow_component_vec::<$t1>().unwrap();
-	// 	$c2 = $a.borrow_component_vec::<$t2>().unwrap();
-	// 	let zip = $c1.iter_mut().zip($c2.iter_mut());
-	// 	zip.filter_map(|(lh, rh)|Some((lh.as_mut()?, rh.as_mut()?)))
-	// }};
-	($a:expr, $($c:ident : $t:ty),*) => {{
-		$( $c = $a.borrow_component_vec::<$t>().unwrap(); )*
-		itertools::izip!( $( $c.iter_mut() ),* ).filter_map( |( $($c),* )| Some(( $($c.as_mut()?),* )) )
-	}};
-}
-
-#[macro_export]
 macro_rules! bundle {
+	($cv:ident) => ( $cv.iter_mut().filter_map(|c|Some(c.as_mut()?)) );
 	($( $cv:ident ),*) => ( itertools::izip!( $( $cv.iter_mut() ),* ).filter_map(|( $($cv),* )| Some(( $($cv.as_mut()?),* ))) );
 }
 
@@ -135,6 +122,21 @@ impl Manager {
 		}
 		None
 	}
+	pub fn clone_component_vec<CompType: 'static + Clone>(&self) -> Option<Vec<Option<CompType>>> {
+		if let Some(col) = self.type_index.get(&TypeId::of::<CompType>()).cloned() {
+			return Some((*self.components[col].downcast_ref::<RefCell<Vec<Option<CompType>>>>().unwrap().borrow()).clone());
+		}
+		None
+	}
+	pub fn get_component_vec_uncast<CompType: 'static>(&self) -> Option<&Box<dyn ComponentVec>> {
+		if let Some(col) = self.type_index.get(&TypeId::of::<CompType>()).cloned() {
+			return Some(&self.components[col]);
+		}
+		None
+	}
+	pub fn contains_component<CompType: 'static>(&self) -> bool {
+		self.type_index.get(&TypeId::of::<CompType>()).is_some()
+	}
 }
 
 
@@ -234,14 +236,17 @@ mod test {
 		assert_comp_vec!(m, Pos[ Some(Pos(1.,1.)), None, Some(Pos(3., 3.)) ]);
 		assert_comp_vec!(m, Tri[ None, None, Some(Tri { points: [0, 0, 0] }) ]);
 		
-		let b = iter_over!(m, Pos).count();
-		assert_eq!(b, 2);
+		{
+			let mut pos = m.borrow_component_vec::<Pos>().unwrap();
+			let b = bundle!(pos).count();
+			assert_eq!(b, 2);
+		}
 		
 		
 		{
-			let mut name;
-			let mut pos;
-			for entity in iter_over!{m, name: Name, pos: Pos} {
+			let mut name = m.borrow_component_vec::<Name>().unwrap();
+			let mut pos = m.borrow_component_vec::<Pos>().unwrap();
+			for entity in bundle!(name, pos) {
 				match entity {
 					(n, p) if n.clone() == Name("Entity 1") => { assert_eq!(p.clone(), Pos(1., 1.)); },
 					(n, p) if n.clone() == Name("Entity 3") => { assert_eq!(p.clone(), Pos(3., 3.)); },
@@ -251,13 +256,76 @@ mod test {
 		}
 		
 		{
-			let mut name;
-			let mut pos;
-			let mut tri;
-			for entity in iter_over!(m, name:Name, pos:Pos, tri:Tri) {
+			let mut name = m.borrow_component_vec::<Name>().unwrap();
+			let mut pos = m.borrow_component_vec::<Pos>().unwrap();
+			let mut tri = m.borrow_component_vec::<Tri>().unwrap();
+			for entity in bundle!(name, pos, tri) {
 				assert_eq!(entity.0.clone(), Name("Entity 3"));
 				assert_eq!(entity.1.clone(), Pos(3., 3.));
 				assert_eq!(entity.2.clone(), Tri { points: [0, 0, 0] });
+			}
+		}
+	}
+
+	trait Shape {
+		fn area(&self) -> u32;
+		fn perimiter(&self) -> u32;
+	}
+
+	#[derive(PartialEq, Debug)]
+	struct Rectangle(u32, u32);
+	impl Shape for Rectangle {
+		fn perimiter(&self) -> u32 {
+			2 * (self.0 + self.1)
+		}
+		fn area(&self) -> u32 {
+			self.0 * self.1
+		}
+	}
+
+	#[derive(PartialEq, Debug)]
+	struct RightTri(u32, u32);
+	impl RightTri {
+		fn hypotenuse(&self) -> u32 {
+			(((self.0 * self.0) + (self.1 * self.1)) as f32).sqrt() as u32
+		}
+	}
+	impl Shape for RightTri {
+		fn area(&self) -> u32 {
+			self.0 * self.1 / 2
+		}
+		fn perimiter(&self) -> u32 {
+			self.0 + self.1 + self.hypotenuse()
+		}
+	}
+
+	#[test]
+	fn iter_group() {
+		let mut m = Manager::new();
+
+		create_and_attach!(m, {
+			Rectangle(1, 1),	// a: 1, p: 4
+			RightTri(3, 4)	// a: 6, p: 12
+		});
+		create_and_attach!(m, {
+			RightTri(3, 4)
+		});
+		create_and_attach!(m, {
+			Rectangle(1, 1)
+		});
+
+		{
+			let mut rects = m.borrow_component_vec::<Rectangle>().unwrap();
+			for rect in bundle!(rects) {
+				assert_eq!(rect.area(), 1);
+				assert_eq!(rect.perimiter(), 4);
+			}
+		}
+		{
+			let mut tris = m.borrow_component_vec::<RightTri>().unwrap();
+			for tri in bundle!(tris) {
+				assert_eq!(tri.area(), 6);
+				assert_eq!(tri.perimiter(), 12);
 			}
 		}
 	}

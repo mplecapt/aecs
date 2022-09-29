@@ -1,4 +1,4 @@
-use aecs::{Manager, iter_over};
+use aecs::Manager;
 use rand::Rng;
 use criterion:: {
 	black_box,
@@ -50,11 +50,11 @@ fn rand_manager() -> Manager {
 }
 
 fn sum(man: &mut Manager) {
-	let mut a;
-	let mut b;
-	let mut c;
+	let mut a = man.borrow_component_vec::<A>().unwrap();
+	let mut b = man.borrow_component_vec::<B>().unwrap();
+	let mut c = man.borrow_component_vec::<C>().unwrap();
 	let mut accum = (0., 0., 0.);
-	for e in iter_over!(man, a:A, b:B, c:C) {
+	for e in aecs::bundle!(a, b, c) {
 		accum.0 += e.0.0;
 		accum.1 += e.1.0;
 		accum.2 += e.2.0;
