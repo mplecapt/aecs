@@ -138,54 +138,55 @@ macro_rules! create_entity_from {
 
 #[macro_export]
 macro_rules! iter_components {
-	($ecs:expr, $chain:ident { $($t:ty),+ }) => {
-		{
-			// $chain = Vec::new();
-			let look_for = HashSet::from([$(TypeId::of::<$t>()),+]);
-			for node in $ecs.archetypes.positions() {
-				if node.types().is_superset(&look_for) {
+	($ecs:expr, $($t:ty),+) => {
+		paste::paste! {
+			$ecs.archetypes.positions().filter_map(|node| {
+				if node.types().is_superset(&HashSet::from([$(TypeId::of::<$t>()),+])) {
 					let arche = node.element();
-					$chain.push(( $(arche.get_component_vec::<$t>()),+ ));
+					Some(( $(arche.get_component_vec::<$t>()),+ ))
+				} else {
+					None
 				}
-			}
-			paste::paste! {
-				$chain.iter().flat_map(|($([< $t:snake:lower >]),+)| itertools::izip!($( [< $t:snake:lower >].iter() ),+))
-			}
+			}).flat_map(|( $([< $t:snake:lower >]),+ )| itertools::izip!($( [< $t:snake:lower >].iter() ),+))
 		}
-	};
+	}
 }
 
 #[macro_export]
 macro_rules! iter_components_mut {
-	($ecs:expr, $chain:ident { $($t:ty),+ }) => {
-		{
-			paste::paste! {
-				// $chain = Vec::new();
-				let look_for = HashSet::from([$(TypeId::of::<$t>()),+]);
-				for node in $ecs.archetypes.positions_mut() {
-					if node.types().is_superset(&look_for) {
-						let [$([< $t:snake:lower >]),+] = node.element_mut().get_many_comp_vec_mut([$(&TypeId::of::<$t>()),+]);
-						$chain.push(( $( [< $t:snake:lower >].as_mut_slice::<$t>() ),+ ));
-					}
+	($ecs:expr, $($t:ty),+) => {
+		paste::paste! {
+			$ecs.archetypes.positions_mut().filter_map(|node| {
+				if node.types().is_superset(&HashSet::from([$(TypeId::of::<$t>()),+])) {
+					let [$([< $t:snake:lower >]),+] = node.element_mut().get_many_comp_vec_mut([$(&TypeId::of::<$t>()),+]);
+					Some(( $( [<$t:snake:lower>].as_mut_slice::<$t>() ),+ ))
+				} else {
+					None
 				}
-				$chain.iter_mut().flat_map(|($([< $t:snake:lower >]),+)| itertools::izip!($( [< $t:snake:lower >].iter_mut() ),+))
-			}
+			}).flat_map(|( $([<$t:snake:lower>]),+)| itertools::izip!($([<$t:snake:lower>].iter_mut()),+))
 		}
-	};
+	}
 }
 
 #[macro_export]
 macro_rules! iter_components_cast {
-	($ecs:expr, $buf:ident, [$($t:ty),+]as $cast:path) => {
-		{
-			$(
-				for node in $ecs.archetypes.positions() {
-					if node.types().contains(&TypeId::of::<$t>()) {
-						$buf.push(node.element().get_component_vec::<$t>().iter().map(|c| c as &dyn $cast).collect::<Vec<&dyn $cast>>())
-					}
+	($ecs:expr, [$first:ty, $($t:ty),*] as $cast:path) => {
+		$ecs.archetypes.positions().filter_map(|node| {
+			if node.types().contains(&TypeId::of::<$first>()) {
+				Some(node.element().get_component_vec::<$first>().iter().map(|c| c as &dyn $cast).collect::<Vec<&dyn $cast>>())
+			} else {
+				None
+			}
+		})
+		$(
+			.chain($ecs.archetypes.positions().filter_map(|node| {
+				if node.types().contains(&TypeId::of::<$t>()) {
+					Some(node.element().get_component_vec::<$t>().iter().map(|c| c as &dyn $cast).collect::<Vec<&dyn $cast>>())
+				} else {
+					None
 				}
-			)+
-			$buf.iter().flat_map(|cv| cv.iter())
-		}
-	};
+			}))
+		)*
+		.flat_map(|x| x.into_iter())
+	}
 }

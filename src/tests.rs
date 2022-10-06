@@ -36,8 +36,7 @@ fn basic_ecs() -> (ECS, [EntityId;4]) {
 fn iter() {
 	let (ecs, entities) = basic_ecs();
 
-	let mut chain = Vec::new();
-	for res in iter_components!(ecs, chain { EntityId, A, B }) {
+	for res in iter_components!(ecs, EntityId, A, B ) {
 		match res {
 			(e, a,b) if e == &entities[0] => assert_eq!((a,b), (&A(10), &B(-5.0))),
 			(e, a, b) if e == &entities[3] => assert_eq!((a,b), (&A(0), &B(0.))),
@@ -51,16 +50,14 @@ fn iter_mut() {
 	let (mut ecs, entities) = basic_ecs();
 
 	{
-		let mut chain = Vec::new();
-		for (e, c) in iter_components_mut!(ecs, chain{ EntityId, C }) {
+		for (e, c) in iter_components_mut!(ecs, EntityId, C) {
 			if e == &entities[1] {
 				*c = C(-10);
 			}
 		}
 	}
 	{
-		let mut chain = Vec::new();
-		for res in iter_components!(ecs, chain{ EntityId, C }) {
+		for res in iter_components!(ecs, EntityId, C) {
 			match res {
 				(e,c) if e == &entities[1] => assert_eq!(c, &C(-10)),
 				(e,c) if e == &entities[2] => assert_eq!(c, &C(-4)),
@@ -73,9 +70,8 @@ fn iter_mut() {
 
 #[test]
 fn iter_cast() {
-	let (mut ecs, entities) = basic_ecs();
+	let (ecs, _entities) = basic_ecs();
 
-	let mut buf = Vec::new();
-	let x = iter_components_cast!(ecs, buf, [A, C] as Letter).collect::<Vec<&&dyn Letter>>();
+	let x = iter_components_cast!(ecs, [A, C] as Letter).collect::<Vec<&dyn Letter>>();
 	let x = &x[..];
 }
