@@ -31,6 +31,12 @@ impl ECS {
 			archetypes,
 		}
 	}
+	pub fn archetypes(&self) -> &TypeGraph {
+		&self.archetypes
+	}
+	pub fn archetypes_mut(&mut self) -> &mut TypeGraph {
+		&mut self.archetypes
+	}
 	pub fn create_entity(&mut self) -> EntityId {
 		let eid = EntityId(Uuid::new_v4());
 		let row = push_entity!(self.archetypes.get_mut(&self.archetypes.root()).unwrap(), [eid]);
@@ -138,10 +144,10 @@ macro_rules! create_entity_from {
 
 #[macro_export]
 macro_rules! iter_components {
-	($ecs:expr, $($t:ty),+) => {
+	($ecs:expr, $($t:path),+) => {
 		paste::paste! {
-			$ecs.archetypes.positions().filter_map(|node| {
-				if node.types().is_superset(&HashSet::from([$(TypeId::of::<$t>()),+])) {
+			$ecs.archetypes().positions().filter_map(|node| {
+				if node.types().is_superset(&hashbrown::HashSet::from([$(std::any::TypeId::of::<$t>()),+])) {
 					let arche = node.element();
 					Some(( $(arche.get_component_vec::<$t>()),+ ))
 				} else {
@@ -154,11 +160,11 @@ macro_rules! iter_components {
 
 #[macro_export]
 macro_rules! iter_components_mut {
-	($ecs:expr, $($t:ty),+) => {
+	($ecs:expr, $([$t:path]),*) => {
 		paste::paste! {
-			$ecs.archetypes.positions_mut().filter_map(|node| {
-				if node.types().is_superset(&HashSet::from([$(TypeId::of::<$t>()),+])) {
-					let [$([< $t:snake:lower >]),+] = node.element_mut().get_many_comp_vec_mut([$(&TypeId::of::<$t>()),+]);
+			$ecs.archetypes_mut().positions_mut().filter_map(|node| {
+				if node.types().is_superset(&hashbrown::HashSet::from([$(std::any::TypeId::of::<$t>()),+])) {
+					let [$([< $t:snake:lower >]),+] = node.element_mut().get_many_comp_vec_mut([$(&std::any::TypeId::of::<$t>()),+]);
 					Some(( $( [<$t:snake:lower>].as_mut_slice::<$t>() ),+ ))
 				} else {
 					None
@@ -170,17 +176,17 @@ macro_rules! iter_components_mut {
 
 #[macro_export]
 macro_rules! iter_components_cast {
-	($ecs:expr, [$first:ty, $($t:ty),*] as $cast:path) => {
-		$ecs.archetypes.positions().filter_map(|node| {
-			if node.types().contains(&TypeId::of::<$first>()) {
+	($ecs:expr, [$first:path, $($t:path),*] as $cast:path) => {
+		$ecs.archetypes().positions().filter_map(|node| {
+			if node.types().contains(&std::any::TypeId::of::<$first>()) {
 				Some(node.element().get_component_vec::<$first>().iter().map(|c| c as &dyn $cast).collect::<Vec<&dyn $cast>>())
 			} else {
 				None
 			}
 		})
 		$(
-			.chain($ecs.archetypes.positions().filter_map(|node| {
-				if node.types().contains(&TypeId::of::<$t>()) {
+			.chain($ecs.archetypes().positions().filter_map(|node| {
+				if node.types().contains(&std::any::TypeId::of::<$t>()) {
 					Some(node.element().get_component_vec::<$t>().iter().map(|c| c as &dyn $cast).collect::<Vec<&dyn $cast>>())
 				} else {
 					None

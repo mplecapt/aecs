@@ -50,7 +50,7 @@ fn iter_mut() {
 	let (mut ecs, entities) = basic_ecs();
 
 	{
-		for (e, c) in iter_components_mut!(ecs, EntityId, C) {
+		for (e, c) in iter_components_mut!(ecs, [EntityId], [C]) {
 			if e == &entities[1] {
 				*c = C(-10);
 			}
@@ -73,5 +73,5 @@ fn iter_cast() {
 	let (ecs, _entities) = basic_ecs();
 
 	let x = iter_components_cast!(ecs, [A, C] as Letter).collect::<Vec<&dyn Letter>>();
-	let x = &x[..];
+	let _x = &x[..];
 }
