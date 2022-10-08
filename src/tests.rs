@@ -50,7 +50,7 @@ fn iter_mut() {
 	let (mut ecs, entities) = basic_ecs();
 
 	{
-		for (e, c) in iter_components_mut!(ecs, [EntityId], [C]) {
+		for (e, c) in iter_components_mut!(ecs, EntityId, C) {
 			if e == &entities[1] {
 				*c = C(-10);
 			}

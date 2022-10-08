@@ -160,7 +160,7 @@ macro_rules! iter_components {
 
 #[macro_export]
 macro_rules! iter_components_mut {
-	($ecs:expr, $([$t:path]),*) => {
+	($ecs:expr, $($t:path),*) => {
 		paste::paste! {
 			$ecs.archetypes_mut().positions_mut().filter_map(|node| {
 				if node.types().is_superset(&hashbrown::HashSet::from([$(std::any::TypeId::of::<$t>()),+])) {
