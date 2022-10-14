@@ -8,6 +8,8 @@ struct RawVec {
 	initialized: bool,
 	_marker: PhantomData<u8>,
 }
+unsafe impl Send for RawVec {}
+unsafe impl Sync for RawVec {}
 impl RawVec {
 	fn new_as<T:'static>() -> Self {
 		Self {
